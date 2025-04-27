@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wheel of Fortune</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+
+        #wheel-container {
+            position: relative;
+            width: 500px;
+            height: 500px;
+            margin-bottom: 20px;
+        }
+
+        #wheel {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+            /* Rotation handled via JS engine */
+            transform: rotate(0);
+        }
+
+        .pointer {
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            border-top: 40px solid #e74c3c;
+            z-index: 10;
+        }
+
+        #spin {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            background: #3498db;
+            color: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            margin-bottom: 10px;
+        }
+
+        #spin:disabled {
+            background: #aaa;
+            cursor: not-allowed;
+        }
+
+        #result {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        #history {
+            list-style: none;
+            padding: 0;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        #history li {
+            background: #fff;
+            margin: 5px 0;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Wheel of Fortune</h1>
+    <div id="wheel-container">
+        <div class="pointer"></div>
+        <canvas id="wheel" width="500" height="500"></canvas>
+    </div>
+    <button id="spin">SPIN</button>
+    <div id="result">Spin to see your prize!</div>
+    <h2>Prize History</h2>
+    <ul id="history"></ul>
+
+    <script>
+        // Prize labels
+        const prizes = [
+            'Car', 'Vacation', 'TV', 'Bike', 'Gift Card', 'Watch', 'Laptop', 'Phone',
+            'Headphones', 'Camera', 'Tablet', 'Backpack', 'Book Set', 'Concert Tickets', 'Mystery Box'
+        ];
+
+        // Build sectors with dynamic HSL colors
+        const sectors = prizes.map((label, i) => ({
+            color: `hsl(${i * 360 / prizes.length}, 70%, 50%)`,
+            label
+        }));
+
+        // Helpers
+        const rand = (m, M) => Math.random() * (M - m) + m;
+        const tot = sectors.length;
+        const spinEl = document.querySelector('#spin');
+        const canvas = document.querySelector('#wheel');
+        const ctx = canvas.getContext('2d');
+        const dia = canvas.width;
+        const rad = dia / 2;
+        const PI = Math.PI;
+        const TAU = 2 * PI;
+        const arc = TAU / tot;
+        const friction = 0.991;
+        let angVel = 0;
+        let ang = 0;
+        let isSpinning = false;
+        const resultDiv = document.getElementById('result');
+        const historyList = document.getElementById('history');
+
+        // Determine current sector index
+        const getIndex = () => Math.floor(tot - (ang / TAU) * tot) % tot;
+
+        // Draw a single sector
+        function drawSector(sector, i) {
+            const angle = arc * i;
+            ctx.save();
+            ctx.beginPath();
+            ctx.fillStyle = sector.color;
+            ctx.moveTo(rad, rad);
+            ctx.arc(rad, rad, rad, angle, angle + arc);
+            ctx.lineTo(rad, rad);
+            ctx.fill();
+            // Text
+            ctx.translate(rad, rad);
+            ctx.rotate(angle + arc / 2);
+            ctx.textAlign = 'right';
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 16px sans-serif';
+            ctx.fillText(sector.label, rad - 10, 5);
+            ctx.restore();
+        }
+
+        // Rotate wheel to current angle
+        function rotate() {
+            canvas.style.transform = `rotate(${ang - PI / 2}rad)`;
+        }
+
+        // Engine frame: apply friction, update angle, and check for stop
+        function frame() {
+            if (!angVel) return;
+            angVel *= friction;
+            if (angVel < 0.002) {
+                angVel = 0;
+                onStop();
+            }
+            ang += angVel;
+            ang %= TAU;
+            rotate();
+        }
+
+        // On spin stop: determine prize and log
+        function onStop() {
+            const sector = sectors[getIndex()];
+            resultDiv.textContent = `Congratulations! You won: ${sector.label}`;
+            addToHistory(sector.label);
+            spinEl.disabled = false;
+            isSpinning = false;
+        }
+
+        // Continuous engine loop
+        function engine() {
+            frame();
+            requestAnimationFrame(engine);
+        }
+
+        // Log history
+        function addToHistory(prize) {
+            const li = document.createElement('li');
+            li.textContent = `${new Date().toLocaleString()}: ${prize}`;
+            historyList.prepend(li);
+        }
+
+        // Initialization
+        function init() {
+            sectors.forEach(drawSector);
+            rotate();
+            engine();
+            spinEl.addEventListener('click', () => {
+                if (isSpinning) return;
+                angVel = rand(0.25, 0.45);
+                isSpinning = true;
+                spinEl.disabled = true;
+                resultDiv.textContent = 'Spinning...';
+            });
+        }
+
+        init();
+    </script>
+</body>
+
+</html>
